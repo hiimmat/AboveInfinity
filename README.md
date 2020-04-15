@@ -4,7 +4,7 @@ AboveInfinity is an header-only library, based on C++17. If used with cmake, the
 
 This library provides a number of data structures used to easier represent multidimensional data (using Tensors and TensorViews), and several functionalities that allow manipulating and/or iterating over the same.
 
-The latest version of the code is tested exclusively on Windows using GCC 7.3.0. Previous versions were tested both on Windows and on Ubuntu 18.04., both using GCC (version 7.3.0. on Windows, and 9.3. on Ubuntu).
+The latest version of the code is tested exclusively on Windows 10 using GCC 7.3.0. Previous versions were tested both on Windows 10 and on Ubuntu 18.04., both using GCC (version 7.3.0. on Windows, and 9.3. on Ubuntu).
 
 An much earlier version supported msvc, however, there were several issues that lead me to drop the support for it. I dropped the support for msvc after getting an error "C1035" when trying to compile the function `subspace` that can be found in "include/TensorView.h".
 Hopefully, a future version will add support for msvc again, as well as Clang.
