@@ -1,0 +1,25 @@
+# Prerequisites
+*.d
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Cmake
+CMakeCache.txt
+Makefile
+*build*
+
+# Git
+*.orig
+*.diff
+diff
+*.save
+save
+*.old
+
+# Other
+.*project
+.settings
+.vscode
