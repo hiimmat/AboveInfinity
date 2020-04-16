@@ -617,7 +617,12 @@ auto flatten(_TensorView&& view) {
                  (std::is_same_v<
                      std::decay_t<decltype(squeezedShape.strides())>,
                      decltype(internal::computeAlignedStrides<typename std::decay_t<_TensorView>::Type,
-                                                              std::decay_t<decltype(squeezedShape.lengths())>>())>)) {
+                                                              std::decay_t<decltype(squeezedShape.lengths())>>())>) ||
+                 ||
+                 (std::is_same_v<
+                     std::decay_t<decltype(squeezedShape.strides())>,
+                     decltype(internal::computeUnalignedStrides<typename std::decay_t<_TensorView>::Type,
+                                                                std::decay_t<decltype(squeezedShape.lengths())>>())>)) {
         requires(flattened.strides().template get<0U>() == 1);
         /* Assure that we're not using permuted lengths and strides */
         constexpr auto initialShape = internal::determineInitialShape<std::decay_t<decltype(squeezedShape)>>();
@@ -725,9 +730,9 @@ inline void saveAsText(TensorView<_Shape, Planes> view, std::string&& fileName) 
     os << "Type size: " << sizeof(typename _Shape::Type) << std::endl;
     /* Currently, there's only support Real and Planar data */
     os << "Memory type: " << (Planes == 1U ? "Real" : "Planar") << std::endl;
-    
+
 #ifdef _IS_BIG_ENDIAN
-    os << "Bytes are ordered using " << (_IS_BIG_ENDIAN == 1) ? << "big endian\n" : "small endian\n";  
+    os << "Bytes are ordered using " << (_IS_BIG_ENDIAN == 1) ? << "big endian\n" : "small endian\n";
 #endif
 
     os << "Lengths: ";

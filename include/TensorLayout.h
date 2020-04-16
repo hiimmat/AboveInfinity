@@ -485,11 +485,8 @@ public:
     }
 
     inline constexpr bool containsPadding() const noexcept {
-        constexpr _Lengths lengths;
-        if constexpr(lengths.size() == 1U) return false;
-        else
-            return internal::stridesContainPadding<_Lengths, _Strides>(
-                std::make_index_sequence<std::tuple_size_v<decltype(std::declval<_Lengths>().tuple())>>());
+        return internal::stridesContainPadding<_Lengths, _Strides>(
+            std::make_index_sequence<std::tuple_size_v<decltype(std::declval<_Lengths>().tuple())>>());
     }
 
     inline constexpr auto ravel() const noexcept {
