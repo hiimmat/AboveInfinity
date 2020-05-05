@@ -1,6 +1,6 @@
 # AboveInfinity
 
-AboveInfinity is an header-only library, based on C++17. If used with cmake, the minimum CMake version required is 3.12.
+AboveInfinity is a templated C++17 header-only library used for tensor manipulation. If it's built through cmake, the minimum CMake version required is 3.12.
 
 This library provides a number of data structures used to easier represent multidimensional data (using Tensors and TensorViews), and several functionalities that allow manipulating and/or iterating over the same.
 
