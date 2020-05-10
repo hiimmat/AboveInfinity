@@ -347,6 +347,66 @@ struct pair {
     static constexpr auto second = _second;
 };
 
+/*
+ * When I designed some of the classes including Shape, Tensor and TensorView, I left left out some great optimisation
+ * opportunities, so I might rewrite them in a future refactor to look more like this:
+ *
+ *    template<int... ls>
+ *    class Lengths {};
+ *
+ *    template<typename T, int... ss>
+ *    class Strides {};
+ *
+ *    template<typename, typename, typename>
+ *    class Shape {
+ *        ~Shape() = delete;
+ *        Shape(Shape const&) = delete;
+ *        void operator=(Shape const&) = delete;
+ *    };
+ *
+ *    template<typename T, int... ls, int... ss>
+ *    class Shape<T, Lengths<ls...>, Strides<T, ss...>> {};
+ *
+ *    template<typename, std::size_t>
+ *    class Tensor {
+ *        ~Tensor() = delete;
+ *        Tensor(Tensor const&) = delete;
+ *        void operator=(Tensor const&) = delete;
+ *    };
+ *
+ *    template<typename T, int... ls, int... ss, std::size_t planes>
+ *    class Tensor<Shape<T, Lengths<ls...>, Strides<T, ss...>>, planes> {};
+ *
+ *    template<typename, std::size_t>
+ *    class TensorView {
+ *        ~TensorView() = delete;
+ *        TensorView(TensorView const&) = delete;
+ *        void operator=(TensorView const&) = delete;
+ *    };
+ *
+ *    template<typename T, int... ls, int... ss, std::size_t planes>
+ *    class TensorView<Shape<T, Lengths<ls...>, Strides<T, ss...>>, planes> {};
+ *
+ * At the same time, this design doesn't offer such an intuitive way of defaulting Strides,
+ * and it allows only Lengths and Strides to be of a specific type, while the current design
+ * allows it to be of any type, including user specific types. Which might be useful for things
+ * such as mock tests. However, there are some functions that would prevent custom classes anyways
+ * since they contain expressions such as:
+ *
+ * if constexpr(std::is_same_v<std::decay_t<decltype(shape.strides())>,
+ *                               decltype(internal::computeAlignedStrides<typename std::decay_t<_Shape>::Type,
+ *                                                                       std::decay_t<decltype(shape.lengths())>>())>)
+ *
+ * And such a large redesign would make instantiating certain objects even harder:
+ *
+ *    Shape<float, Lengths<1, 2, 3>, Strides<float, 4, 5, 6>> x;
+ *    Tensor<Shape<float, Lengths<1, 2, 3>, Strides<float, 4, 5, 6>>, 2> y;
+ *    TensorView<Shape<float, Lengths<1, 2, 3>, Strides<float, 4, 5, 6>>, 2> z;
+ *
+ * Redesigning these classes still is as a huge improvement, since it should make code parsing for compilers and writing
+ * new functionalities for developers significantly easier
+ */
+
 /* Class representing the Shape of a multidimensional array */
 template<typename T, class _Lengths, class _Strides = decltype(internal::computeAlignedStrides<T, _Lengths>())>
 class Shape {
