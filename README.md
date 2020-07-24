@@ -40,6 +40,6 @@ As already mentioned, there are plans for future versions that would include fur
 
 Functionalities that are planned for the next release include:
 - Matrix multiplication
-- Einsum with optimized contractions
+- Einsum with optimized contractions through a combinatorial optimization algorithm and a brute-force algorithm 
 <br />
 Comments and bug reports are welcome. 
