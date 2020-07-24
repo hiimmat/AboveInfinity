@@ -14,141 +14,159 @@ namespace AboveInfinity {
  * I decided against the shared pointer implementation mostly as I didn't want the transferable
  * ownership, which could end up with a Tensor staying alive longer than what the user would expect
  */
-template<class _Shape, std::size_t Planes = 1U>
+
+template<typename, std::size_t>
 class TensorView {
-    requires(std::is_object_v<typename _Shape::Type>);
+    ~TensorView() = delete;
+    TensorView(TensorView const&) = delete;
+    void operator=(TensorView const&) = delete;
+};
+
+template<typename T, int... ls, int... ss, std::size_t Planes>
+class TensorView<Shape<Lengths<ls...>, Strides<T, ss...>>, Planes> {
     requires(Planes > 0U);
 
-public:
-    using Type = typename _Shape::Type;
-    using Reference = typename _Shape::Reference;
-    using Pointer = typename _Shape::Pointer;
-
 private:
-    std::array<Pointer, Planes> _ptrs;
+    std::array<T*, Planes> _ptrs;
+    static constexpr auto _lengths = std::array{ls...};
+    static constexpr auto _strides = std::array{ss...};
 
-    template<std::size_t Plane, int... lenOffsets, std::size_t... is>
-    inline constexpr Pointer slicingPointerImpl(std::index_sequence<is...>) const {
-        constexpr _Shape shape;
+    template<std::size_t Plane, int... offsets, std::size_t... is>
+    inline T* slicingPointerImpl(std::index_sequence<is...>&&) const {
+        constexpr std::size_t nOffsets = sizeof...(offsets);
+        constexpr std::size_t rank = sizeof...(ls);
+        constexpr auto offsetsArr = std::array{offsets...};
 
-        requires(Plane >= 0U && Plane < Planes);
-        requires(sizeof...(is) == sizeof...(lenOffsets));
-        requires(sizeof...(lenOffsets) <= shape.lengths().size());
-        requires(((lenOffsets >= 0) && ...));
-        requires(((std::get<sizeof...(lenOffsets) - is - 1U>(std::tuple(lenOffsets...)) <
-                   shape.lengths().template get<shape.lengths().size() - is - 1U>()) &&
-                  ...));
-        Pointer _memory = _ptrs[Plane];
+        requires(Plane < Planes);
+        requires(sizeof...(is) == nOffsets);
+        requires(nOffsets <= rank);
+        requires(((offsets >= 0) && ...));
+        requires(((offsetsArr[nOffsets - is - 1U] < _lengths[rank - is - 1U]) && ...));
 
-        return _memory + ((((std::get<sizeof...(lenOffsets) - is - 1U>(std::tuple(lenOffsets...)) *
-                             shape.strides().template get<shape.strides().size() - is - 1U>())) +
-                           ...));
+        T* _memory = _ptrs[Plane];
+
+        return _memory + ((((offsetsArr[nOffsets - is - 1U] * _strides[rank - is - 1U])) + ...));
+    }
+
+    template<std::size_t... is, typename... Offsets>
+    inline T* slicingPointerImpl(std::size_t Plane, std::index_sequence<is...>&&, Offsets&&... offsets) const {
+        requires(((std::is_same_v<std::decay_t<Offsets>, int>)&&...));
+        constexpr std::size_t nOffsets = sizeof...(offsets);
+        constexpr std::size_t rank = sizeof...(ls);
+        auto offsetsArr = std::array{offsets...};
+
+        requires(sizeof...(is) == nOffsets);
+        requires(nOffsets <= rank);
+
+        T* _memory = _ptrs[Plane];
+
+        return _memory + ((((offsetsArr[nOffsets - is - 1U] * _strides[rank - is - 1U])) + ...));
     }
 
     template<std::size_t skipDim, int lenOffset, std::size_t... is>
-    inline auto sliceImpl(std::index_sequence<is...>) const {
-        constexpr _Shape shape;
-
-        requires(shape.rank() > 1U);
-        requires(skipDim >= 0U && skipDim < shape.rank());
-        requires(lenOffset >= 0 && lenOffset < shape.lengths().template get<skipDim>());
+    inline auto sliceImpl(std::index_sequence<is...>&&) const {
+        requires(sizeof...(ls) > 1U);
+        requires(skipDim < sizeof...(ls));
+        requires(lenOffset >= 0 && lenOffset < _lengths[skipDim]);
         requires(sizeof...(is) == Planes);
 
-        constexpr int pointerOffset = lenOffset * shape.strides().template get<skipDim>();
+        constexpr int pointerOffset = lenOffset * _strides[skipDim];
 
-        return TensorView<decltype(shape.template dimensionReduction<skipDim>()), Planes>{
-            (std::get<is>(_ptrs) + pointerOffset)...};
+        return TensorView<decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().template dimensionReduction<skipDim>()),
+                          Planes>{(std::get<is>(_ptrs) + pointerOffset)...};
     }
 
     template<std::size_t skipDim, std::size_t... is>
-    inline auto sliceImpl(int lenOffset, std::index_sequence<is...>) const {
-        constexpr _Shape shape;
-
-        requires(shape.rank() > 1U);
-        requires(skipDim >= 0U && skipDim < shape.rank());
+    inline auto sliceImpl(int lenOffset, std::index_sequence<is...>&&) const {
+        requires(sizeof...(ls) > 1U);
+        requires(skipDim < sizeof...(ls));
         requires(sizeof...(is) == Planes);
 
-        int pointerOffset = lenOffset * shape.strides().template get<skipDim>();
+        int pointerOffset = lenOffset * _strides[skipDim];
 
-        return TensorView<decltype(shape.template dimensionReduction<skipDim>()), Planes>{
-            (std::get<is>(_ptrs) + pointerOffset)...};
+        return TensorView<decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().template dimensionReduction<skipDim>()),
+                          Planes>{(_ptrs[is] + pointerOffset)...};
     }
 
     template<std::size_t offsetDim, int firstElem, int lastElem, std::size_t... is>
-    inline constexpr auto slabImpl(std::index_sequence<is...>) const {
-        constexpr _Shape shape;
-        requires(offsetDim >= 0U && offsetDim < shape.rank());
-        requires(firstElem >= 0 && firstElem < static_cast<int>(shape.lengths().template get<offsetDim>()));
-        requires(lastElem >= 0 && lastElem <= static_cast<int>(shape.lengths().template get<offsetDim>()));
+    inline constexpr auto slabImpl(std::index_sequence<is...>&&) const {
+        requires(offsetDim < sizeof...(ls));
+        requires(firstElem >= 0 && firstElem < _lengths[offsetDim]);
+        requires(lastElem > 0 && lastElem <= _lengths[offsetDim]);
         requires(lastElem - firstElem > 0);
         requires(sizeof...(is) == Planes);
 
-        constexpr int pointerOffset = firstElem * shape.strides().template get<offsetDim>();
+        constexpr int pointerOffset = firstElem * _strides[offsetDim];
 
-        return TensorView<decltype(shape.template setLength<offsetDim, lastElem - firstElem>()), Planes>{
-            (std::get<is>(_ptrs) + pointerOffset)...};
+        return TensorView<
+            decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().template setLength<offsetDim, lastElem - firstElem>()),
+            Planes>{(_ptrs[is] + pointerOffset)...};
     }
 
     template<typename... pairs, std::size_t... pairsIS, std::size_t... planesIS>
-    inline constexpr auto subspaceImpl(std::index_sequence<pairsIS...>, std::index_sequence<planesIS...>) const {
-        constexpr _Shape shape;
-
+    inline constexpr auto subspaceImpl(std::index_sequence<pairsIS...>&&, std::index_sequence<planesIS...>&&) const {
+        requires(sizeof...(pairsIS) == sizeof...(pairs));
+        requires(sizeof...(planesIS) == Planes);
         constexpr int pointerOffset =
             (((((pairs::first == pairs::second && pairs::first > 0) ? (pairs::first - 1) : pairs::first) *
-               shape.strides().template get<pairsIS>()) +
+               _strides[pairsIS]) +
               ...));
 
-        return TensorView<decltype(shape.template subspace<pairs...>()), Planes>{
-            (std::get<planesIS>(_ptrs) + pointerOffset)...};
+        return TensorView<decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().template subspace<pairs...>()), Planes>{
+            (_ptrs[planesIS] + pointerOffset)...};
     }
 
     template<std::size_t... is, typename... Pointers>
-    inline auto addPlanesImpl(std::index_sequence<is...>, Pointers&&... pointers) {
-        requires(((std::is_same_v<std::decay_t<Pointers>, Pointer>)&&...));
+    inline auto addPlanesImpl(std::index_sequence<is...>&&, Pointers&&... pointers) {
+        requires(((std::is_same_v<std::decay_t<Pointers>, T*>)&&...));
         requires(sizeof...(is) == Planes);
 
         const auto planePointers = std::array{_ptrs[is]..., pointers...};
-        return TensorView<_Shape, Planes + sizeof...(Pointers)>{planePointers};
+        return TensorView<Shape<Lengths<ls...>, Strides<T, ss...>>, Planes + sizeof...(Pointers)>{planePointers};
     }
 
     template<std::size_t N, typename _Pointer, std::size_t... is>
-    inline auto addPlaneImpl(_Pointer ptr, std::index_sequence<is...>) {
+    inline auto addPlaneImpl(_Pointer&& ptr, std::index_sequence<is...>&&) {
         requires(N <= Planes);
-        requires(std::is_same_v<std::decay_t<_Pointer>, Pointer>);
+        requires(std::is_same_v<std::decay_t<_Pointer>, T*>);
         requires(sizeof...(is) == Planes + 1U);
 
-        if constexpr(N == Planes) return TensorView<_Shape, Planes + 1U>{(is != N ? _ptrs[is] : ptr)...};
-        else
-            return TensorView<_Shape, Planes + 1U>{(is < N ? _ptrs[is] : is == N ? ptr : _ptrs[is - 1U])...};
+        return TensorView<Shape<Lengths<ls...>, Strides<T, ss...>>, Planes + 1U>{
+            (is < N ? _ptrs[is] : is == N ? ptr : _ptrs[is - 1U])...};
     }
 
     template<std::size_t N, typename _Pointer, std::size_t... is>
-    inline auto replacePlaneImpl(_Pointer ptr, std::index_sequence<is...>) {
+    inline auto replacePlaneImpl(_Pointer&& ptr, std::index_sequence<is...>&&) {
         requires(N < Planes);
-        requires(std::is_same_v<std::decay_t<_Pointer>, Pointer>);
+        requires(std::is_same_v<std::decay_t<_Pointer>, T*>);
         requires(sizeof...(is) == Planes);
 
-        return TensorView<_Shape, Planes>{(is == N ? ptr : _ptrs[is])...};
+        return TensorView<Shape<Lengths<ls...>, Strides<T, ss...>>, Planes>{(is == N ? ptr : _ptrs[is])...};
     }
 
     template<std::size_t... planesToRemove, std::size_t... planesIS, std::size_t... outIS>
     inline constexpr auto
-        removePlanesImpl(std::index_sequence<planesIS...>, std::index_sequence<outIS...>) const noexcept {
+        removePlanesImpl(std::index_sequence<planesIS...>&&, std::index_sequence<outIS...>&&) const noexcept {
         requires(sizeof...(planesIS) == Planes);
         requires(sizeof...(planesIS) - sizeof...(outIS) > 0U && sizeof...(planesIS) - sizeof...(outIS) < Planes);
 
         constexpr auto planesToKeep = std::tuple_cat(internal::skipIdx<planesIS, planesToRemove...>()...);
-        return TensorView<_Shape, sizeof...(outIS)>{_ptrs[std::get<outIS>(planesToKeep)]...};
+        return TensorView<Shape<Lengths<ls...>, Strides<T, ss...>>, sizeof...(outIS)>{
+            _ptrs[std::get<outIS>(planesToKeep)]...};
     }
 
 public:
+    using Type = T;
+    using Reference = T&;
+    using Pointer = T*;
+
     inline constexpr TensorView() = default;
 
-    inline constexpr explicit TensorView(std::array<Pointer, Planes> ptrs) noexcept : _ptrs{ptrs} {}
+    inline constexpr explicit TensorView(std::array<T*, Planes> ptrs) noexcept : _ptrs{ptrs} {}
 
     template<typename... pointers>
     inline constexpr explicit TensorView(pointers&&... ptrs) noexcept : _ptrs{ptrs...} {
-        requires(((std::is_same_v<std::decay_t<pointers>, Pointer>)&&...));
+        requires(((std::is_same_v<std::decay_t<pointers>, T*>)&&...));
         requires(sizeof...(pointers) == Planes);
     }
 
@@ -161,7 +179,8 @@ public:
      */
     template<std::size_t... Order>
     inline constexpr auto fastPermute() const noexcept {
-        return TensorView<decltype(std::declval<_Shape>().template fastPermute<Order...>()), Planes>{_ptrs};
+        return TensorView<decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().template fastPermute<Order...>()), Planes>{
+            _ptrs};
     }
 
     /*
@@ -173,20 +192,27 @@ public:
      * strides to determine what the right ordering should be
      */
     inline constexpr auto undoPermutation() const noexcept {
-        return TensorView<decltype(std::declval<_Shape>().undoPermutation()), Planes>{_ptrs};
+        return TensorView<decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().undoPermutation()), Planes>{_ptrs};
     }
 
     /*
      * Retrieves the pointer to a dimension on the specified plane
-     * The same result can be achieved by calling slice several times
+     * The same result can be achieved by calling slice several times and later
      * retrieving the pointer for the specified plane through the data function
-     * NOTE
-     * The function receives its parameters in a reverse order
-     * The first element matches the outtermost length of the TensorView, etc.
      */
-    template<std::size_t Plane, int... lenOffsets>
-    inline constexpr Pointer slicingPointer() const {
-        return slicingPointerImpl<Plane, lenOffsets...>(std::make_index_sequence<sizeof...(lenOffsets)>());
+    template<std::size_t Plane, int... offsets>
+    inline constexpr T* slicingPointer() const {
+        return slicingPointerImpl<Plane, offsets...>(std::make_index_sequence<sizeof...(offsets)>());
+    }
+
+    /*
+     * Runtime version of the previously defined "slicingPointer" function
+     * WARNING
+     * This function has no bound checks checking the passed offsets
+     */
+    template<typename... Offsets>
+    inline constexpr T* slicingPointer(std::size_t Plane, Offsets&&... offsets) const {
+        return slicingPointerImpl(Plane, std::make_index_sequence<sizeof...(offsets)>(), offsets...);
     }
 
     /* Performs a hyperplane */
@@ -244,14 +270,12 @@ public:
      */
     template<std::size_t N>
     inline constexpr auto newAxis() const noexcept {
-        constexpr _Shape shape;
-        return TensorView<decltype(shape.template newAxis<N>()), Planes>{_ptrs};
+        return TensorView<decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().template newAxis<N>()), Planes>{_ptrs};
     }
 
     /* Removes single dimensions from the Shape */
     inline constexpr auto squeeze() const noexcept {
-        constexpr _Shape shape;
-        return TensorView<decltype(shape.squeeze()), Planes>{_ptrs};
+        return TensorView<decltype(Shape<Lengths<ls...>, Strides<T, ss...>>().squeeze()), Planes>{_ptrs};
     }
 
     /* Keeps the plane/s specified in the input, and discards the rest from the TensorView */
@@ -262,7 +286,7 @@ public:
         requires(((planeIdxs < Planes) && ...));
         internal::allUnique<planeIdxs...>();
 
-        return TensorView<_Shape, sizeof...(planeIdxs)>{_ptrs[planeIdxs]...};
+        return TensorView<Shape<Lengths<ls...>, Strides<T, ss...>>, sizeof...(planeIdxs)>{_ptrs[planeIdxs]...};
     }
 
     /*
@@ -270,7 +294,9 @@ public:
      * WARNING
      * No bound checks are performed
      */
-    inline auto keepPlane(std::size_t planeIdx) const { return TensorView<_Shape, 1U>{_ptrs[planeIdx]}; }
+    inline auto keepPlane(std::size_t planeIdx) const {
+        return TensorView<Shape<Lengths<ls...>, Strides<T, ss...>>, 1U>{_ptrs[planeIdx]};
+    }
 
     /* Adds one or more planes to the TensorView */
     template<typename... Pointers>
@@ -285,7 +311,7 @@ public:
      */
     template<std::size_t N, typename _Pointer>
     inline auto addPlane(_Pointer&& ptr) {
-        return addPlaneImpl<N>(ptr, std::make_index_sequence<Planes + 1U>());
+        return addPlaneImpl<N>(std::forward<_Pointer>(ptr), std::make_index_sequence<Planes + 1U>());
     }
 
     /*
@@ -295,7 +321,7 @@ public:
      */
     template<std::size_t N, typename _Pointer>
     inline auto replacePlane(_Pointer&& ptr) {
-        return replacePlaneImpl<N>(ptr, std::make_index_sequence<Planes>());
+        return replacePlaneImpl<N>(std::forward<_Pointer>(ptr), std::make_index_sequence<Planes>());
     }
 
     /* Removes one or more planes from the TensorView */
@@ -311,53 +337,44 @@ public:
     }
 
     /* Returns the Shape of the TensorView */
-    inline constexpr const auto shape() const noexcept { return _Shape(); }
+    inline constexpr const auto shape() const noexcept { return Shape<Lengths<ls...>, Strides<T, ss...>>(); }
 
     /* Returns the underlying lengths of the TensorView */
-    inline constexpr const auto lengths() const noexcept {
-        constexpr _Shape shape;
-        return shape.lengths();
-    }
+    inline constexpr const auto lengths() const noexcept { return Lengths<ls...>(); }
 
     /* Returns the length of the requested dimension */
     template<std::size_t N>
-    inline constexpr const int length() const noexcept {
-        constexpr _Shape shape;
-        return shape.lengths().template get<N>();
+    inline constexpr int length() const noexcept {
+        requires(N < sizeof...(ls));
+        return _lengths[N];
     }
 
     /* Returns the underlying strides of the TensorView */
-    inline constexpr const auto strides() const noexcept {
-        constexpr _Shape shape;
-        return shape.strides();
-    }
+    inline constexpr const auto strides() const noexcept { return Strides<T, ss...>(); }
 
     /* Returns the stride of the requested dimension */
     template<std::size_t N>
-    inline constexpr const int stride() const noexcept {
-        constexpr _Shape shape;
-        return shape.strides().template get<N>();
+    inline constexpr int stride() const noexcept {
+        requires(N < sizeof...(ss));
+        return _strides[N];
     }
 
     /* Returns the number of planes of the TensorView */
-    inline constexpr const std::size_t planes() const noexcept { return Planes; }
+    inline constexpr std::size_t planes() const noexcept { return Planes; }
 
     /* Returns the rank of the TensorView */
-    inline constexpr const std::size_t rank() noexcept {
-        constexpr _Shape shape;
-        return shape.lengths().size();
-    }
+    inline constexpr std::size_t rank() noexcept { return sizeof...(ls); }
 
     /* Returns a pointer to the beginning of the data for a specified plane of the TensorView */
     template<std::size_t Plane = 0U>
-    inline Pointer data() noexcept {
+    inline T* data() noexcept {
         requires(Plane < Planes);
         return _ptrs[Plane];
     }
 
     /* Returns a const pointer to the beginning of the data for a specified plane of the TensorView */
     template<std::size_t Plane = 0U>
-    inline const Pointer data() const noexcept {
+    inline const T* data() const noexcept {
         requires(Plane < Planes);
         return _ptrs[Plane];
     }
@@ -367,20 +384,20 @@ public:
      * WARNING
      * No bound checks are performed
      */
-    inline Pointer data(std::size_t plane = 0U) { return _ptrs[plane]; }
+    inline T* data(std::size_t plane = 0U) { return _ptrs[plane]; }
 
     /*
      * Returns a const pointer to the beginning of the data for a specified plane of the TensorView
      * WARNING
      * No bound checks are performed
      */
-    inline const Pointer data(std::size_t plane = 0U) const { return _ptrs[plane]; }
+    inline const T* data(std::size_t plane = 0U) const { return _ptrs[plane]; }
 
     /* Returns a std::array containing all the pointers representing the planes of the TensorView */
-    inline std::array<Pointer, Planes> pointers() noexcept { return _ptrs; }
+    inline std::array<T*, Planes> pointers() noexcept { return _ptrs; }
 
     /* Returns a const std::array containing all the pointers representing the planes of the TensorView */
-    inline const std::array<const Pointer, Planes> pointers() const noexcept { return _ptrs; }
+    inline const std::array<const T*, Planes> pointers() const noexcept { return _ptrs; }
 };
 
 } // namespace AboveInfinity

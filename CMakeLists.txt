@@ -1,17 +1,17 @@
 # MSVC's Cmake server mode had a bug reading the following format:
 # https://github.com/fmtlib/fmt/issues/809
-cmake_minimum_required(VERSION 3.12...3.17)
+cmake_minimum_required(VERSION 3.12...3.18)
 
 # else needed because of the previous mentioned issue in "cmake_minimum_required"
-if(${CMAKE_VERSION} VERSION_LESS 3.17)
+if(${CMAKE_VERSION} VERSION_LESS 3.18)
   cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 else()
-  cmake_policy(VERSION 3.17)
+  cmake_policy(VERSION 3.18)
 endif()
 
 project(
   "AboveInfinity"
-  VERSION 0.1
+  VERSION 0.2
   DESCRIPTION "A header only C++ library that provides a set of templated data structures with a number of features and standalone functions for easier multidimensional data manipulation."
   HOMEPAGE_URL "https://github.com/hiimmat/AboveInfinity"
   LANGUAGES CXX)
@@ -27,6 +27,13 @@ endif()
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+INCLUDE(CheckCXXCompilerFlag)
+
+FILE(GLOB filenames "cmake/Macros/*.cmake")
+FOREACH(filename ${filenames})
+  INCLUDE(${filename})
+ENDFOREACH()
+
 include(GNUInstallDirs)
 
 set(INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
@@ -39,6 +46,9 @@ set(ABOVEINFINITY_ROOT_DIR ${CMAKE_INSTALL_PREFIX})
 
 option(ENABLE_REQUIREMENTS "Enable static asserts" ON)
 set(MAX_STACK_ALLOC_SIZE "1024" CACHE STRING "Maximum size in bytes of a Tensor that can be allocated on the stack, default is 1024")
+
+enable_testing()
+add_subdirectory(tests)
 
 foreach(key
   IN ITEMS

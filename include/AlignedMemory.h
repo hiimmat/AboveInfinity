@@ -31,7 +31,7 @@ using val = std::integral_constant<std::decay_t<decltype(T)>, T>;
  * This class represents a move-only aligned block of memory
  * The HeapTensor uses this class for memory allocations
  */
-template<class T>
+template<typename T>
 class AlignedMemory {
     requires(std::is_object_v<T>);
 
@@ -68,16 +68,16 @@ public:
     inline AlignedMemory& operator=(AlignedMemory&&) noexcept = default;
 
     /* Returns a pointer to the beginning of the data */
-    inline T* get() noexcept { return _memory.get(); }
+    inline T* data() noexcept { return _memory.get(); }
 
     /* Returns a const pointer to the beginning of the data */
-    inline const T* get() const noexcept { return _memory.get(); }
+    inline const T* data() const noexcept { return _memory.get(); }
 
     /* Returns the size used for the allocation */
-    inline const std::size_t size() const noexcept { return _size; }
+    inline std::size_t size() const noexcept { return _size; }
 
     /* Returns the alignment of the allocated memory */
-    inline const std::size_t alignment() const noexcept { return _alignment; }
+    inline std::size_t alignment() const noexcept { return _alignment; }
 };
 
-}; // namespace AboveInfinity
+} // namespace AboveInfinity

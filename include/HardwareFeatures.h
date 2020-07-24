@@ -3,9 +3,9 @@
 #include <cstdio>
 
 #if defined __has_include
-#if __has_include("sys_info.h")
-#include "SysInfo.h"
-#endif
+    #if __has_include("sys_info.h")
+        #include "SysInfo.h"
+    #endif
 #endif
 
 namespace AboveInfinity {
@@ -27,7 +27,7 @@ static constexpr const std::size_t AIAlignment = 16U;
 
 /* Number of elements that can be executed simultaneously - based on experience */
 template<typename T>
-constexpr const inline std::size_t SimultaneousVecOps() noexcept {
+constexpr inline std::size_t SimultaneousVecOps() noexcept {
     return AIAlignment / sizeof(T);
 }
 
@@ -37,6 +37,6 @@ static constexpr const std::size_t maxStackAllocSize = _MAXSTACKALLOCSIZE;
 static constexpr const std::size_t maxStackAllocSize = 1024U;
 #endif
 
-}; // namespace hwFeatures
+} // namespace hwFeatures
 
-}; // namespace AboveInfinity
+} // namespace AboveInfinity

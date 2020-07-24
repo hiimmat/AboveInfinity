@@ -2,7 +2,6 @@
 #include "Requirements.h"
 
 #include <array>
-#include <iostream>
 #include <tuple>
 #include <utility>
 
@@ -12,15 +11,15 @@ namespace internal {
 
 /* Checks that all elements of a sequence are unique */
 template<auto head, auto... tail>
-inline constexpr auto allUnique() noexcept {
+inline constexpr void allUnique() noexcept {
     if constexpr(sizeof...(tail) > 0U) {
         requires(((head != tail) && ...));
         allUnique<tail...>();
     }
 
-    if constexpr(sizeof...(tail) == 0U) return true;
+    if constexpr(sizeof...(tail) == 0U) return;
 }
-}; // namespace internal
+} // namespace internal
 
 /* Class representing the lengths of a multidimensional array */
 template<int... _Lengths>
@@ -31,36 +30,38 @@ class Lengths {
     requires(((_Lengths * ...) > 1));
 
 private:
+    static constexpr auto ls = std::array{_Lengths...};
+
     template<std::size_t N, std::size_t... is>
-    inline constexpr auto dimensionReductionImpl(std::index_sequence<is...>) const noexcept {
-        requires(N >= 0U && N < sizeof...(_Lengths));
+    inline constexpr auto dimensionReductionImpl(std::index_sequence<is...>&&) const noexcept {
+        requires(N < sizeof...(_Lengths));
         requires(sizeof...(is) == sizeof...(_Lengths) - 1U);
-        return Lengths<std::get<(is < N ? is : is + 1U)>(std::forward_as_tuple(_Lengths...))...>();
+        return Lengths<ls[is < N ? is : is + 1U]...>();
     }
 
     template<std::size_t N, int reductionSize, std::size_t... is>
     inline constexpr auto lengthReductionImpl(std::index_sequence<is...>&&) const noexcept {
-        requires(N >= 0U && N < sizeof...(_Lengths));
-        requires(reductionSize >= 0 && reductionSize < std::get<N>(std::forward_as_tuple(_Lengths...)));
+        requires(N < sizeof...(_Lengths));
+        requires(reductionSize >= 0 && reductionSize < ls[N]);
         requires(sizeof...(is) == sizeof...(_Lengths));
-        return Lengths<(is == N ? std::get<is>(std::forward_as_tuple(_Lengths...)) - reductionSize :
-                                  std::get<is>(std::forward_as_tuple(_Lengths...)))...>();
+        return Lengths<(is == N ? ls[is] - reductionSize : ls[is])...>();
     }
 
     template<std::size_t N, int newLength, std::size_t... is>
     inline constexpr auto setLengthImpl(std::index_sequence<is...>&&) const noexcept {
-        requires(N >= 0U && N < sizeof...(_Lengths));
+        requires(N < sizeof...(_Lengths));
         requires(sizeof...(is) == sizeof...(_Lengths));
-        return Lengths<(is == N ? newLength : std::get<is>(std::forward_as_tuple(_Lengths...)))...>();
+        requires(newLength > 0 && newLength <= ls[N]);
+        return Lengths<(is == N ? newLength : ls[is])...>();
     }
 
 public:
     template<std::size_t... Order>
     inline constexpr auto fastPermute() const noexcept {
         requires(sizeof...(Order) == sizeof...(_Lengths));
-        requires(((Order >= 0U && Order < sizeof...(_Lengths)) && ...));
+        requires(((Order < sizeof...(_Lengths)) && ...));
         internal::allUnique<Order...>();
-        return Lengths<(std::get<Order>(std::forward_as_tuple(_Lengths...)))...>();
+        return Lengths<ls[Order]...>();
     }
 
     template<std::size_t N>
@@ -81,12 +82,12 @@ public:
     }
 
     template<std::size_t N>
-    inline constexpr const int get() const noexcept {
-        requires(N >= 0U && N < sizeof...(_Lengths));
-        return std::get<N>(std::forward_as_tuple(_Lengths...));
+    inline constexpr int get() const noexcept {
+        requires(N < sizeof...(_Lengths));
+        return ls[N];
     }
 
-    inline constexpr const std::size_t size() const noexcept { return sizeof...(_Lengths); }
+    inline constexpr std::size_t size() const noexcept { return sizeof...(_Lengths); }
 
     inline constexpr auto tuple() const noexcept { return std::tuple(_Lengths...); }
 
@@ -99,22 +100,27 @@ class Strides {
     requires(sizeof...(_Strides) > 0U);
     requires(((_Strides >= 0) && ...));
 
+private:
+    static constexpr auto ss = std::array{_Strides...};
+
     template<std::size_t N, std::size_t... is>
-    inline constexpr auto dimensionReductionImpl(std::index_sequence<is...>) const noexcept {
-        requires(N >= 0U && N < sizeof...(_Strides));
+    inline constexpr auto dimensionReductionImpl(std::index_sequence<is...>&&) const noexcept {
+        requires(N < sizeof...(_Strides));
         requires(sizeof...(is) == sizeof...(_Strides) - 1U);
-        return Strides<T, std::get<(is < N ? is : is + 1U)>(std::forward_as_tuple(_Strides...))...>();
+        return Strides<T, (is < N ? ss[is] : ss[is + 1U])...>();
     }
 
 public:
     using Type = T;
+    using Reference = T&;
+    using Pointer = T*;
 
     template<std::size_t... Order>
     inline constexpr auto fastPermute() const noexcept {
         requires(sizeof...(Order) == sizeof...(_Strides));
-        requires(((Order >= 0U && Order < sizeof...(_Strides)) && ...));
+        requires(((Order < sizeof...(_Strides)) && ...));
         internal::allUnique<Order...>();
-        return Strides<T, (std::get<Order>(std::forward_as_tuple(_Strides...)))...>();
+        return Strides<T, ss[Order]...>();
     }
 
     template<std::size_t N>
@@ -123,12 +129,12 @@ public:
     }
 
     template<std::size_t N>
-    inline constexpr const int get() const noexcept {
-        requires(N >= 0U && N < sizeof...(_Strides));
-        return std::get<N>(std::forward_as_tuple(_Strides...));
+    inline constexpr int get() const noexcept {
+        requires(N < sizeof...(_Strides));
+        return ss[N];
     }
 
-    inline constexpr const std::size_t size() const noexcept { return sizeof...(_Strides); }
+    inline constexpr std::size_t size() const noexcept { return sizeof...(_Strides); }
 
     inline constexpr auto tuple() const noexcept { return std::tuple(_Strides...); }
 
@@ -148,8 +154,8 @@ namespace internal {
  * Another issue is that, if there's a dimension with the length equal to 1, its stride and the next dimensions
  * stride will be equal. This might affect the ordering in functions like undoPermutation
  */
-template<typename T, class _Lengths, std::size_t... is>
-inline constexpr auto computeAlignedStrides(std::index_sequence<is...>) noexcept {
+template<typename T, typename _Lengths, std::size_t... is>
+inline constexpr auto computeAlignedStrides(std::index_sequence<is...>&&) noexcept {
     requires(sizeof...(is) > 0U);
     constexpr _Lengths lengths;
     requires(sizeof...(is) == lengths.size() - 2U);
@@ -163,7 +169,7 @@ inline constexpr auto computeAlignedStrides(std::index_sequence<is...>) noexcept
     return Strides<T, firstStride, (firstLength + alignMask) & ~alignMask, (strides[is + 2U])...>();
 }
 
-template<typename T, class _Lengths>
+template<typename T, typename _Lengths>
 inline constexpr auto computeAlignedStrides() noexcept {
     constexpr _Lengths lengths;
     constexpr int firstLength = lengths.template get<0U>();
@@ -179,8 +185,8 @@ inline constexpr auto computeAlignedStrides() noexcept {
         return Strides<T, firstStride>();
 }
 
-template<typename T, class _Lengths, std::size_t... is>
-inline constexpr auto computeUnalignedStrides(std::index_sequence<is...>) noexcept {
+template<typename T, typename _Lengths, std::size_t... is>
+inline constexpr auto computeUnalignedStrides(std::index_sequence<is...>&&) noexcept {
     requires(sizeof...(is) > 0U);
     constexpr _Lengths lengths;
     requires(sizeof...(is) == lengths.size() - 1U);
@@ -198,7 +204,7 @@ inline constexpr auto computeUnalignedStrides(std::index_sequence<is...>) noexce
  * If there's a dimension with the length equal to 1, its stride and the next dimensions
  * stride will be equal. This might affect the ordering in functions like undoPermutation
  */
-template<typename T, class _Lengths>
+template<typename T, typename _Lengths>
 inline constexpr auto computeUnalignedStrides() noexcept {
     constexpr _Lengths lengths;
     constexpr int firstLength = lengths.template get<0U>();
@@ -212,8 +218,9 @@ inline constexpr auto computeUnalignedStrides() noexcept {
     }
 }
 
-template<class _Lengths, class _Strides, std::size_t... is, std::size_t... distance>
-inline constexpr auto partiallyComputeStrides(std::index_sequence<is...>, std::index_sequence<distance...>) noexcept {
+template<typename _Lengths, typename _Strides, std::size_t... is, std::size_t... distance>
+inline constexpr auto
+    partiallyComputeStrides(std::index_sequence<is...>&&, std::index_sequence<distance...>&&) noexcept {
     constexpr _Lengths lengths;
     constexpr _Strides strides;
     requires(sizeof...(is) == strides.size());
@@ -229,7 +236,7 @@ inline constexpr auto partiallyComputeStrides(std::index_sequence<is...>, std::i
 }
 
 /* Takes one or more existing strides, and computes the rest based on the lengths and strides it already has */
-template<class _Lengths, class _Strides, bool aligned = true>
+template<typename _Lengths, typename _Strides, bool aligned = true>
 inline constexpr auto partiallyComputeStrides() noexcept {
     constexpr _Lengths lengths;
     constexpr _Strides strides;
@@ -251,94 +258,69 @@ inline constexpr auto partiallyComputeStrides() noexcept {
     }
 }
 
-/* Finds the index of the smallest stride */
-template<auto... strides, std::size_t... is>
-inline constexpr std::size_t minStrideIndex(std::index_sequence<is...>) noexcept {
-    requires(sizeof...(strides) == sizeof...(is));
-    constexpr auto stridesArr = std::array{strides...};
-    std::size_t minStrideIdx = 0U;
+template<auto... elems, std::size_t... is>
+inline constexpr std::size_t findMinIndex(std::index_sequence<is...>&&) noexcept {
+    requires(sizeof...(elems) >= sizeof...(is));
+    constexpr auto elemsArr = std::array{elems...};
+    std::size_t minIdx = std::get<0U>(std::forward_as_tuple(is...));
 
-    return ((stridesArr[is] < stridesArr[minStrideIdx] ? minStrideIdx = is : minStrideIdx), ...);
+    return ((elemsArr[is] < elemsArr[minIdx] ? minIdx = is : minIdx), ...);
 }
 
 /* Returns the indexes of the strides in ascending order */
-template<typename... pairs, std::size_t... is, std::size_t... os>
-inline constexpr auto sortStrideIndexes(std::index_sequence<is...>, std::index_sequence<os...>) noexcept {
-    requires(sizeof...(pairs) == sizeof...(is));
-    requires(sizeof...(is) == sizeof...(os) + 1U);
-    constexpr auto pairsTuple = std::tuple{pairs()...};
-    constexpr std::size_t minStrideIdx = minStrideIndex<pairs::first...>(std::make_index_sequence<sizeof...(pairs)>());
+template<auto... elems, std::size_t... is, std::size_t... os>
+inline constexpr auto sortedIndexesAsc(std::index_sequence<is...>&&, std::index_sequence<os...>&&) noexcept {
+    requires(sizeof...(is) <= sizeof...(elems));
+    requires(sizeof...(os) == sizeof...(is) - 1U);
 
-    if constexpr(sizeof...(is) == 1U) return std::tuple(std::get<minStrideIdx>(pairsTuple).second);
+    if constexpr(sizeof...(is) == 1U) return std::tuple(is...);
 
-    if constexpr(sizeof...(is) > 1U)
+    if constexpr(sizeof...(is) > 1U) {
+        constexpr std::size_t minElemIdx = findMinIndex<elems...>(std::index_sequence<is...>());
+        constexpr auto inSeq = std::array{is...};
         return std::tuple_cat(
-            std::tuple(std::get<minStrideIdx>(pairsTuple).second),
-            sortStrideIndexes<std::decay_t<decltype(std::get<(os < minStrideIdx ? os : os + 1U)>(pairsTuple))>...>(
-                std::make_index_sequence<sizeof...(os)>(), std::make_index_sequence<sizeof...(os) - 1U>()));
+            std::tuple(minElemIdx),
+            sortedIndexesAsc<elems...>(std::index_sequence<(inSeq[os] < minElemIdx ? inSeq[os] : inSeq[os + 1U])...>(),
+                                       std::make_index_sequence<sizeof...(os) - 1U>()));
+    }
 }
 
-template<int... elems, class Compare>
-inline constexpr const std::size_t count(Compare&& comp) noexcept {
+template<int... elems, typename Compare>
+inline constexpr std::size_t count(Compare&& comp) noexcept {
     std::size_t count = 0U;
     return (((comp(elems)) ? ++count : count), ...);
 }
 
-template<typename A, std::size_t... is>
-inline constexpr const std::size_t squeezeCount(A&& arr, std::index_sequence<is...>) noexcept {
+template<auto... elems>
+inline constexpr std::size_t squeezeCount() noexcept {
     std::size_t count = 0U;
-    return (((std::get<is>(arr) == 1) ? ++count : count), ...);
+    return (((elems == 1) ? ++count : count), ...);
 }
 
-template<int Length, int Comp>
-inline constexpr auto skipLength() noexcept {
-    if constexpr(Length != Comp) return std::tuple(Length);
-    if constexpr(Length == Comp) return std::tuple<>();
-}
-
-template<int Length, int Comp, int Stride>
-inline constexpr auto skipStride() noexcept {
-    if constexpr(Length != Comp) return std::tuple(Stride);
-    if constexpr(Length == Comp) return std::tuple<>();
+template<bool pack, auto... elems>
+inline constexpr auto packToTuple() noexcept {
+    if constexpr(pack) return std::tuple(elems...);
+    else
+        return std::tuple<>();
 }
 
 template<std::size_t idx, std::size_t... compIdxs>
 inline constexpr auto skipIdx() noexcept {
     if constexpr(((idx != compIdxs) && ...)) return std::tuple(idx);
-    if constexpr(((idx == compIdxs) || ...)) return std::tuple<>();
+    else
+        return std::tuple<>();
 }
 
-template<class _Strides, std::size_t... is>
-inline constexpr std::size_t maxStrideIndex(std::index_sequence<is...>) noexcept {
-    constexpr _Strides strides;
-    constexpr auto strideArr = strides.array();
-    requires(sizeof...(is) == strides.size());
-
+template<auto... strides, std::size_t... is>
+inline constexpr std::size_t maxStrideIndex(std::index_sequence<is...>&&) noexcept {
+    requires(sizeof...(is) == sizeof...(strides));
+    constexpr auto stridesArr = std::array{strides...};
     std::size_t maxStrideIdx = 0U;
 
-    return ((strideArr[is] > strideArr[maxStrideIdx] ? maxStrideIdx = is : maxStrideIdx), ...);
+    return ((stridesArr[is] > stridesArr[maxStrideIdx] ? maxStrideIdx = is : maxStrideIdx), ...);
 }
 
-template<class _Lengths, class _Strides, std::size_t... is>
-inline constexpr auto stridesContainPadding(std::index_sequence<is...>) noexcept {
-    constexpr _Lengths lengths;
-
-    if constexpr(lengths.size() == 1U) return false;
-
-    constexpr _Strides strides;
-    constexpr std::size_t size = lengths.size();
-
-    requires(sizeof...(is) == size);
-
-    constexpr auto maxStrideIdx = maxStrideIndex<_Strides>(std::make_index_sequence<sizeof...(is)>());
-
-    return ((lengths.template get<is>() * ...) !=
-            lengths.template get<maxStrideIdx>() * strides.template get<maxStrideIdx>()) ?
-               true :
-               false;
-}
-
-}; // namespace internal
+} // namespace internal
 
 /* Helper data structure used for functions like subspace */
 template<auto _first, auto _second>
@@ -347,137 +329,89 @@ struct pair {
     static constexpr auto second = _second;
 };
 
-/*
- * When I designed some of the classes including Shape, Tensor and TensorView, I left left out some great optimisation
- * opportunities, so I might rewrite them in a future refactor to look more like this:
- *
- *    template<int... ls>
- *    class Lengths {};
- *
- *    template<typename T, int... ss>
- *    class Strides {};
- *
- *    template<typename, typename, typename>
- *    class Shape {
- *        ~Shape() = delete;
- *        Shape(Shape const&) = delete;
- *        void operator=(Shape const&) = delete;
- *    };
- *
- *    template<typename T, int... ls, int... ss>
- *    class Shape<T, Lengths<ls...>, Strides<T, ss...>> {};
- *
- *    template<typename, std::size_t>
- *    class Tensor {
- *        ~Tensor() = delete;
- *        Tensor(Tensor const&) = delete;
- *        void operator=(Tensor const&) = delete;
- *    };
- *
- *    template<typename T, int... ls, int... ss, std::size_t planes>
- *    class Tensor<Shape<T, Lengths<ls...>, Strides<T, ss...>>, planes> {};
- *
- *    template<typename, std::size_t>
- *    class TensorView {
- *        ~TensorView() = delete;
- *        TensorView(TensorView const&) = delete;
- *        void operator=(TensorView const&) = delete;
- *    };
- *
- *    template<typename T, int... ls, int... ss, std::size_t planes>
- *    class TensorView<Shape<T, Lengths<ls...>, Strides<T, ss...>>, planes> {};
- *
- * At the same time, this design doesn't offer such an intuitive way of defaulting Strides,
- * and it allows only Lengths and Strides to be of a specific type, while the current design
- * allows it to be of any type, including user specific types. Which might be useful for things
- * such as mock tests. However, there are some functions that would prevent custom classes anyways
- * since they contain expressions such as:
- *
- * if constexpr(std::is_same_v<std::decay_t<decltype(shape.strides())>,
- *                               decltype(internal::computeAlignedStrides<typename std::decay_t<_Shape>::Type,
- *                                                                       std::decay_t<decltype(shape.lengths())>>())>)
- *
- * And such a large redesign would make instantiating certain objects even harder:
- *
- *    Shape<float, Lengths<1, 2, 3>, Strides<float, 4, 5, 6>> x;
- *    Tensor<Shape<float, Lengths<1, 2, 3>, Strides<float, 4, 5, 6>>, 2> y;
- *    TensorView<Shape<float, Lengths<1, 2, 3>, Strides<float, 4, 5, 6>>, 2> z;
- *
- * Redesigning these classes still is as a huge improvement, since it should make code parsing for compilers and writing
- * new functionalities for developers significantly easier
- */
+template<typename, typename>
+class Shape {
+    ~Shape() = delete;
+    Shape(Shape const&) = delete;
+    void operator=(Shape const&) = delete;
+};
 
 /* Class representing the Shape of a multidimensional array */
-template<typename T, class _Lengths, class _Strides = decltype(internal::computeAlignedStrides<T, _Lengths>())>
-class Shape {
-private:
-    template<std::size_t... is>
-    inline constexpr auto undoPermutationImpl(std::index_sequence<is...>) const noexcept {
-        constexpr _Lengths lengths;
-        constexpr _Strides strides;
+template<typename T, int... ls, int... ss>
+class Shape<Lengths<ls...>, Strides<T, ss...>> {
+    requires(sizeof...(ls) == sizeof...(ss));
 
-        requires(sizeof...(is) == strides.size());
+private:
+    static constexpr auto _lengths = std::array{ls...};
+    static constexpr auto _strides = std::array{ss...};
+
+    template<std::size_t... is>
+    inline constexpr auto undoPermutationImpl(std::index_sequence<is...>&&) const noexcept {
+        requires(sizeof...(is) == sizeof...(ls));
         /* Strides that are equal to zero would be set at the beginning */
-        requires(((strides.template get<is>() > 0) && ...));
-        constexpr auto order = internal::sortStrideIndexes<pair<std::get<is>(strides.array()), is>...>(
-            std::make_index_sequence<strides.size()>(), std::make_index_sequence<strides.size() - 1U>());
+        requires(((_strides[is] > 0) && ...));
+        constexpr auto order = internal::sortedIndexesAsc<ss...>(std::make_index_sequence<sizeof...(ss)>(),
+                                                                 std::make_index_sequence<sizeof...(ss) - 1U>());
         requires(std::tuple_size_v<decltype(order)> == sizeof...(is));
-        return Shape<T,
-                     decltype(Lengths<lengths.array()[std::get<is>(order)]...>()),
-                     decltype(Strides<T, strides.array()[std::get<is>(order)]...>())>();
+        return Shape<Lengths<_lengths[std::get<is>(order)]...>, Strides<T, _strides[std::get<is>(order)]...>>();
+    }
+
+    template<std::size_t N, std::size_t... is>
+    inline constexpr auto dimensionReductionImpl(std::index_sequence<is...>&&) const noexcept {
+        requires(N < sizeof...(ls));
+        requires(sizeof...(is) == sizeof...(ls) - 1U);
+        return Shape<Lengths<_lengths[is < N ? is : is + 1U]...>, Strides<T, _strides[is < N ? is : is + 1U]...>>();
+    }
+
+    template<std::size_t N, int reductionSize, std::size_t... is>
+    inline constexpr auto lengthReductionImpl(std::index_sequence<is...>&&) const noexcept {
+        requires(sizeof...(is) == sizeof...(ls));
+        requires(N < sizeof...(ls));
+        requires(reductionSize >= 0 && reductionSize < _lengths[N]);
+        return Shape<Lengths<(is == N ? _lengths[is] - reductionSize : _lengths[is])...>, Strides<T, ss...>>();
+    }
+
+    template<std::size_t N, int newLength, std::size_t... is>
+    inline constexpr auto setLengthImpl(std::index_sequence<is...>&&) const noexcept {
+        requires(N < sizeof...(ls));
+        requires(newLength > 0 && newLength <= _lengths[N]);
+        requires(sizeof...(is) == sizeof...(ls));
+        return Shape<Lengths<(is == N ? newLength : _lengths[is])...>, Strides<T, ss...>>();
     }
 
     template<typename... pairs, std::size_t... is>
     inline constexpr void subspaceAssert(std::index_sequence<is...>&&) const noexcept {
-        constexpr _Lengths lengths;
         requires(sizeof...(pairs) > 0U);
         requires(sizeof...(pairs) == sizeof...(is));
-        requires(sizeof...(pairs) <= lengths.size());
+        requires(sizeof...(pairs) <= sizeof...(ls));
         requires(((pairs::second - pairs::first >= 0) && ...));
-        requires(((pairs::first >= 0 && pairs::first < lengths.template get<is>()) && ...));
-        requires(((pairs::second >= 0 && pairs::second <= lengths.template get<is>()) && ...));
+        requires(((pairs::first >= 0 && pairs::first <= _lengths[is]) && ...));
+        requires(((pairs::second >= 0 && pairs::second <= _lengths[is]) && ...));
     }
 
     template<int... lengthsHS, std::size_t... slabIS, std::size_t... sliceIS>
     inline constexpr auto
         subspaceImpl(std::index_sequence<slabIS...>&&, std::index_sequence<sliceIS...>&&) const noexcept {
-        constexpr _Strides strides;
-        return Shape<
-            T,
-            decltype(Lengths<std::get<sliceIS>(std::tuple_cat(internal::skipLength<lengthsHS, 0>()...))...>()),
-            decltype(Strides<T,
+        return Shape<Lengths<std::get<sliceIS>(
+                         std::tuple_cat(internal::packToTuple<(lengthsHS != 0 ? true : false), lengthsHS>()...))...>,
+                     Strides<T,
                              std::get<sliceIS>(std::tuple_cat(
-                                 internal::skipStride<lengthsHS, 0, strides.template get<slabIS>()>()...))...>())>();
+                                 internal::packToTuple<(lengthsHS != 0 ? true : false), _strides[slabIS]>()...))...>>();
     }
 
     template<std::size_t N, std::size_t... is>
-    inline constexpr auto newAxisImpl(std::index_sequence<is...>) const noexcept {
-        constexpr _Lengths lengths;
-        constexpr _Strides strides;
-
-        requires(N < lengths.size());
-        requires(sizeof...(is) == lengths.size() + 1U);
-
-        const auto newLengths = Lengths<((is == N ? 1 : std::get<(is > N ? is - 1U : is)>(lengths.array())))...>();
-        const auto newStrides = Strides<T, ((is == N ? 0 : std::get<(is > N ? is - 1U : is)>(strides.array())))...>();
-        return Shape<T, decltype(newLengths), decltype(newStrides)>();
+    inline constexpr auto newAxisImpl(std::index_sequence<is...>&&) const noexcept {
+        requires(N <= sizeof...(ls));
+        requires(sizeof...(is) == sizeof...(ls) + 1U);
+        return Shape<Lengths<(is < N ? _lengths[is] : is == N ? 1 : _lengths[is - 1U])...>,
+                     Strides<T, (is < N ? _strides[is] : is == N ? 0 : _strides[is - 1U])...>>();
     }
 
-    template<std::size_t... full, std::size_t... squeezed>
-    inline constexpr auto squeeze_impl(std::index_sequence<full...>, std::index_sequence<squeezed...>) const noexcept {
-        constexpr _Lengths lengths;
-        constexpr _Strides strides;
-
-        requires(sizeof...(full) == lengths.size());
-        requires(sizeof...(squeezed) < sizeof...(full));
-        return Shape<T,
-                     decltype(Lengths<std::get<squeezed>(
-                                  std::tuple_cat(internal::skipLength<std::get<full>(lengths.array()), 1>()...))...>()),
-                     decltype(Strides<T,
-                                      std::get<squeezed>(std::tuple_cat(
-                                          internal::skipStride<std::get<full>(lengths.array()),
-                                                               1,
-                                                               std::get<full>(strides.array())>()...))...>())>();
+    template<std::size_t... sqIs>
+    inline constexpr auto squeezeImpl(std::index_sequence<sqIs...>&&) const noexcept {
+        constexpr auto lensTup = std::tuple_cat(internal::packToTuple<(ls != 1 ? true : false), ls>()...);
+        constexpr auto stridesTup = std::tuple_cat(internal::packToTuple<(ls != 1 ? true : false), ss>()...);
+        return Shape<Lengths<std::get<sqIs>(lensTup)...>, Strides<T, std::get<sqIs>(stridesTup)...>>();
     }
 
 public:
@@ -485,37 +419,34 @@ public:
     using Reference = T&;
     using Pointer = T*;
 
+    Shape() = default;
+
     template<std::size_t... Order>
     inline constexpr auto fastPermute() const noexcept {
-        return Shape<T,
-                     decltype(std::declval<_Lengths>().template fastPermute<Order...>()),
-                     decltype(std::declval<_Strides>().template fastPermute<Order...>())>();
+        requires(sizeof...(Order) == sizeof...(ls));
+        requires(((Order < sizeof...(ls)) && ...));
+        internal::allUnique<Order...>();
+        return Shape<Lengths<_lengths[Order]...>, Strides<T, _strides[Order]...>>();
     }
 
     inline constexpr auto undoPermutation() const noexcept {
-        constexpr _Lengths lengths;
-        return undoPermutationImpl(std::make_index_sequence<lengths.size()>());
+        return undoPermutationImpl(std::make_index_sequence<sizeof...(ls)>());
     }
 
-    inline constexpr const auto lengths() const noexcept { return _Lengths(); }
-
-    inline constexpr const auto strides() const noexcept { return _Strides(); }
-
     template<std::size_t N>
-    inline constexpr const auto dimensionReduction() const noexcept {
-        return Shape<T,
-                     decltype(std::declval<_Lengths>().template dimensionReduction<N>()),
-                     decltype(std::declval<_Strides>().template dimensionReduction<N>())>();
+    inline constexpr auto dimensionReduction() const noexcept {
+        requires(sizeof...(ls) > 1U);
+        return dimensionReductionImpl<N>(std::make_index_sequence<sizeof...(ls) - 1U>());
     }
 
     template<std::size_t N, int reductionSize>
-    inline constexpr const auto lengthReduction() const noexcept {
-        return Shape<T, decltype(std::declval<_Lengths>().template lengthReduction<N, reductionSize>()), _Strides>();
+    inline constexpr auto lengthReduction() const noexcept {
+        return lengthReductionImpl<N, reductionSize>(std::make_index_sequence<sizeof...(ls)>());
     }
 
     template<std::size_t N, int newLength>
     inline constexpr auto setLength() const noexcept {
-        return Shape<T, decltype(std::declval<_Lengths>().template setLength<N, newLength>()), _Strides>();
+        return setLengthImpl<N, newLength>(std::make_index_sequence<sizeof...(ls)>());
     }
 
     template<typename... pairs>
@@ -529,40 +460,69 @@ public:
 
     template<std::size_t N>
     inline constexpr auto newAxis() const noexcept {
-        constexpr _Lengths lengths;
-        return newAxisImpl<N>(std::make_index_sequence<lengths.size() + 1U>());
+        return newAxisImpl<N>(std::make_index_sequence<sizeof...(ls) + 1U>());
     }
 
     inline constexpr auto squeeze() const noexcept {
-        constexpr _Lengths lengths;
-        constexpr std::size_t onesCount =
-            internal::squeezeCount(lengths.array(), std::make_index_sequence<lengths.size()>());
+        constexpr std::size_t onesCount = internal::squeezeCount<ls...>();
 
-        if constexpr(onesCount == 0U) return Shape<T, _Lengths, _Strides>();
+        if constexpr(onesCount == 0U) return Shape<Lengths<ls...>, Strides<T, ss...>>();
         else
-            return squeeze_impl(std::make_index_sequence<lengths.size()>(),
-                                std::make_index_sequence<lengths.size() - onesCount>());
+            return squeezeImpl(std::make_index_sequence<sizeof...(ls) - onesCount>());
     }
 
     inline constexpr bool containsPadding() const noexcept {
-        return internal::stridesContainPadding<_Lengths, _Strides>(
-            std::make_index_sequence<std::tuple_size_v<decltype(std::declval<_Lengths>().tuple())>>());
+        if constexpr(sizeof...(ss) == 1U) return false;
+
+        constexpr std::size_t maxStrideIdx = internal::maxStrideIndex<ss...>(std::make_index_sequence<sizeof...(ss)>());
+        return ((ls * ...) != _lengths[maxStrideIdx] * _strides[maxStrideIdx]) ? true : false;
     }
 
     inline constexpr auto ravel() const noexcept {
-        constexpr _Lengths lengths;
+        if constexpr(sizeof...(ls) == 1U) return Shape<Lengths<ls...>, Strides<T, ss...>>();
 
-        if constexpr(lengths.size() == 1U) return Shape<T, _Lengths, _Strides>();
-
-        requires(!internal::stridesContainPadding<_Lengths, _Strides>(
-            std::make_index_sequence<std::tuple_size_v<decltype(std::declval<_Lengths>().tuple())>>()));
-
-        return Shape<T, decltype(lengths.flatten()), decltype(Strides<T, 1>())>();
+        constexpr std::size_t maxStrideIdx = internal::maxStrideIndex<ss...>(std::make_index_sequence<sizeof...(ss)>());
+        requires(((ls * ...) == _lengths[maxStrideIdx] * _strides[maxStrideIdx]));
+        return Shape<Lengths<(ls * ...)>, Strides<T, 1>>();
     }
 
-    inline constexpr const std::size_t rank() const noexcept {
-        constexpr _Lengths lengths;
-        return lengths.size();
+    inline constexpr const auto lengths() const noexcept { return Lengths<ls...>(); }
+
+    template<std::size_t N>
+    inline constexpr const auto length() const noexcept {
+        requires(N < _lengths.size());
+        return _lengths[N];
     }
+
+    inline constexpr const auto strides() const noexcept { return Strides<T, ss...>(); }
+
+    template<std::size_t N>
+    inline constexpr const auto stride() const noexcept {
+        requires(N < _strides.size());
+        return _strides[N];
+    }
+
+    inline constexpr std::size_t rank() const noexcept { return sizeof...(ls); }
 };
-}; // namespace AboveInfinity
+
+/* Tensor shape type */
+template<typename T, int... ls>
+using TShape = Shape<Lengths<ls...>, decltype(internal::computeAlignedStrides<T, Lengths<ls...>>())>;
+
+/* Tensor shape type with provided Lengths type */
+template<typename T, template<int...> typename _Lengths, int... ls>
+using TLShape = Shape<_Lengths<ls...>, decltype(internal::computeAlignedStrides<T, _Lengths<ls...>>())>;
+
+/* Unaligned tensor shape type */
+template<typename T, int... ls>
+using TUShape = Shape<Lengths<ls...>, decltype(internal::computeUnalignedStrides<T, Lengths<ls...>>())>;
+
+/* Unaligned tensor shape type with provided Lengths type */
+template<typename T, template<int...> typename _Lengths, int... ls>
+using TULShape = Shape<_Lengths<ls...>, decltype(internal::computeUnalignedStrides<T, _Lengths<ls...>>())>;
+
+/* Tensor shape type with partially computed strides */
+template<typename _Lengths, typename _Strides, bool aligned = true>
+using TPShape = Shape<_Lengths, decltype(internal::partiallyComputeStrides<_Lengths, _Strides, aligned>())>;
+
+} // namespace AboveInfinity
