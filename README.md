@@ -39,7 +39,6 @@ Hopefully, a future version will add support for msvc again, as well as Clang.
 As already mentioned, there are plans for future versions that would include further functionality additions and improvements, testing refactors, documentation, more examples, and hopefully wider compiler and architecture support. However, those largely depend on my spare time that can be used for this project. As such, the possible release dates remain unknown.
 
 Functionalities that are planned for the next release include:
-- Matrix multiplication
 - Einsum with optimized contractions through a combinatorial optimization algorithm and a brute-force algorithm 
 <br />
 Comments and bug reports are welcome. 
