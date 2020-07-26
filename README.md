@@ -36,7 +36,7 @@ Hopefully, a future version will add support for msvc again, as well as Clang.
 
 ## Further changes
 
-As already mentioned, there are plans for future versions that would include further functionality additions and improvements, testing refactors, documentation, more examples, and hopefully wider compiler and architecture support. However, those largely depend on my spare time that can be used for this project. As such, the possible release dates remain unknown.
+As already mentioned, there are plans for future versions that would include further functionality additions and improvements, testing refactors, documentation, examples through `binder`, and hopefully wider compiler and architecture support. However, those largely depend on my spare time that can be used for this project. As such, the possible release dates remain unknown.
 
 Functionalities that are planned for the next release include:
 - Einsum with optimized contractions through a combinatorial optimization algorithm and a brute-force algorithm 
