@@ -39,6 +39,9 @@ Hopefully, a future version will add support for msvc again, as well as Clang.
 As already mentioned, there are plans for future versions that would include further functionality additions and improvements, testing refactors, documentation, examples through `binder`, and hopefully wider compiler and architecture support. However, those largely depend on my spare time that can be used for this project. As such, the possible release dates remain unknown.
 
 Functionalities that are planned for the next release include:
-- Einsum with optimized contractions through a combinatorial optimization algorithm and a brute-force algorithm 
+- Einsum with optimized contractions through a combinatorial optimization algorithm and a brute-force algorithm
+- Lazy evaluation
+- Refactoring Tensor and TensorView into a single class with a policy-based design for memory allocations and a compile-time visitor
+- Classes TensorPool and PoolTensor
 <br />
 Comments and bug reports are welcome. 
