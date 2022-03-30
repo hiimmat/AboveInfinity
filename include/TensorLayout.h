@@ -5,6 +5,9 @@
 #include <tuple>
 #include <utility>
 
+// TODO: Consider moving all the methods implemented in classes Lengths and Strides to Shape and rewriting
+// them using TypeLists and ValueLists. It should reduce code bloating and increase performance.
+
 namespace AboveInfinity {
 
 namespace internal {

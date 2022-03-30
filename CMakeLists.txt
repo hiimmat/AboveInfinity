@@ -50,41 +50,6 @@ set(MAX_STACK_ALLOC_SIZE "1024" CACHE STRING "Maximum size in bytes of a Tensor 
 enable_testing()
 add_subdirectory(tests)
 
-foreach(key
-  IN ITEMS
-    NUMBER_OF_LOGICAL_CORES
-    NUMBER_OF_PHYSICAL_CORES
-    HOSTNAME
-    FQDN
-    TOTAL_VIRTUAL_MEMORY
-    AVAILABLE_VIRTUAL_MEMORY
-    TOTAL_PHYSICAL_MEMORY
-    AVAILABLE_PHYSICAL_MEMORY
-    IS_64BIT
-    HAS_FPU
-    HAS_MMX
-    HAS_MMX_PLUS
-    HAS_SSE
-    HAS_SSE2
-    HAS_SSE_FP
-    HAS_SSE_MMX
-    HAS_AMD_3DNOW
-    HAS_AMD_3DNOW_PLUS
-    HAS_IA64
-    HAS_SERIAL_NUMBER
-    PROCESSOR_SERIAL_NUMBER
-    PROCESSOR_NAME
-    PROCESSOR_DESCRIPTION
-    OS_NAME
-    OS_RELEASE
-    OS_VERSION
-    OS_PLATFORM
-  )
-  cmake_host_system_information(RESULT _${key} QUERY ${key})
-endforeach()
-
-configure_file(cmake/sys_info.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/SysInfo.h @ONLY)
-
 include (TestBigEndian)
 TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
 
