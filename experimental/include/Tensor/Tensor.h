@@ -1,121 +1,141 @@
-#pragma once
+#include <iostream>
 
-#include "CTPlane.h"
-#include "CTPlanes.h"
-#include "CustomTraits.h"
 
-namespace AboveInfinity {
+template<typename...>
+struct front {};
 
-/**
- * Class representing an N-dimensional tensor
- *
- * All of the Tensor's functionalities come from its policies that it inherits through CRTP. This design has many
- * advantages, such as compile-time policy based design with a variadic number of policies that can be easily
- * added/removed and completely modular plane design. The biggest disadvantage is not being able to declare policies as
- * friends and aliasing them. It is possible though to declare the first, last or Nth policy as a friend. However,
- * declaring all of them as friends isn't possible. I've taken a different approach to solve this issue. The solution that
- * I came up with can be found in the file TensorWithFriendPolicies.h. The biggest disadvantage (and the reason I'm not using
- * it here) is that it requires a lot of casting that can't be evaluated during compile-time.
- *
- * @tparam _Planes: Class representing the planes of the Tensor
- * @tparam Policies: Policies that the Tensor inherits through CRTP
- */
-template<typename _Planes = CTPlanes<>, template<typename> typename... Policies>
-class Tensor : public Policies<Tensor<_Planes, Policies...>>... {
+template<template<typename...> typename T, typename... Ts, typename... Rest>
+struct front<T<Ts...>, Rest...> {
+    using type = T<Ts...>;
+};
+
+template<typename... Ts>
+using front_t = typename front<Ts...>::type;
+
+
+template<typename, typename>
+struct append {
+};
+
+template<template<typename...> typename T, typename... Ts, template<template<typename...> typename...> typename U, template<typename...> typename... Us>
+struct append<T<Ts...>, U<Us...>> {
+    using type = U<T, Us...>;
+};
+
+template<template<template<typename...> typename...> typename U, template<typename...> typename... Us, template<typename...> typename T, typename...Ts>
+struct append<U<Us...>, T<Ts...>> {
+    using type = U<Us..., T>;
+};
+
+template<template<template<typename...> typename...> typename U, template<typename...> typename... Us, template<typename...> typename... Ts>
+struct append<U<Us...>, U<Ts...>> {
+    using type = U<Us..., Ts...>;
+};
+
+template<typename T, typename U>
+using append_t = typename append<T, U>::type;
+
+
+template<typename, typename>
+struct erase {
+};
+
+template<template<typename...> typename T, typename...Ts, template<template<typename...> typename...> typename U, template<typename...> typename... Us>
+struct erase<T<Ts...>, U<T, Us...>> {
+    using type = U<Us...>;
+};
+
+template<template<typename...> typename T, typename...Ts, template<template<typename...> typename...> typename U, template<typename...> typename... Us>
+struct erase<T<Ts...>, U<Us...>> {
+    using type = U<Us...>;
+};
+
+template<template<typename...> typename T, typename...Ts, template<template<typename...> typename...> typename U, template<typename...> typename Head, template<typename...> typename... Tail>
+struct erase<T<Ts...>, U<Head, Tail...>> {
+    using type = typename append<U<Head>, typename erase<T<Ts...>, U<Tail...>>::type>::type;
+};
+
+template<typename T, typename U>
+using erase_t = typename erase<T, U>::type;
+
+
+template<typename>
+struct move_to_front {
+};
+
+template<template<typename...> typename Derived, template<template<typename...> typename...> typename Base, template<typename...> typename... BaseTs>
+struct move_to_front<Derived<Base<BaseTs...>>> {
+   using type = Derived<append_t<Derived<Base<BaseTs...>>, erase_t<Derived<Base<BaseTs...>>, Base<BaseTs...>>>>;
+};
+
+template<typename T>
+using move_to_front_t = typename move_to_front<T>::type;
+
+
+template<template<typename> typename... Policies>
+class Tensor : public move_to_front_t<Policies<Tensor<Policies...>>>... {
+
 private:
-    _Planes planes;
+    friend front_t<Policies<Tensor<Policies...>>...>;
 
-    template<template<typename> typename... _Policies>
-    auto ExtractPoliciesFromList(TTypeList<_Policies...>) {
-        return Tensor<_Planes, _Policies...>();
+    int x{0};
+    
+    void private_print() {
+        std::cout << "In tensors' private method\n";
     }
 
 public:
-    /**
-     * Default constructor
-     */
-    Tensor() = default;
 
-    /**
-     * Construct a new Tensor object using existing planes
-     * 
-     * @tparam Planes: Types of planes used to construct the Tensor
-     * @param planes: Planes used by the Tensor
-     */
-    template<typename Planes>
-    Tensor(Planes&& planes) : planes{std::forward<Planes>(planes)} {
-        requires(std::is_same_v<std::decay_t<Planes>, std::decay_t<_Planes>>,
-                 "Planes given to Tensors' constructor must have the same type as the ones used for its declaration");
+    void public_print() {
+        std::cout << "In tensors' public method\n";
     }
 
-    /**
-     * Default copy constructor
-     */
-    Tensor(Tensor&) = default;
-    
-    /**
-     * Default copy assignment operator
-     */
-    Tensor& operator=(Tensor&) = default;
-
-    /**
-     * Default move constructor
-     */
-    Tensor(Tensor&&) = default;
-
-    /**
-     * Default move assignment operator
-     */
-    Tensor& operator=(Tensor&&) = default;
-
-    /**
-     * Returns the list of planes used by the tensor
-     * 
-     * @return: reference to the list of planes used by the tensor 
-     */
-    inline _Planes& Planes() { return planes; }
-
-    /**
-     * Returns the list of planes used by the tensor
-     * 
-     * @return: const reference to the list of planes used by the tensor 
-     */
-    inline const _Planes& Planes() const { return planes; }
-
-    /**
-     * Adds a new policy to the Tensor
-     * 
-     * @tparam NewPolicy: Type of the newly added policy
-     * @tparam position: position at which the policy should be added.
-     * If the position is negative, the policy is added at the end of the list
-     * @return: Tensor object with the newly added policy 
-     */
-    template<template<typename> typename NewPolicy, int position = -1>
-    auto AddPolicy() {
-        return ExtractPoliciesFromList(InsertType<TTypeList<Policies...>, NewPolicy, position>());
-    }
-
-    /**
-     * Removes an existing policy from the Tensor
-     * 
-     * @tparam _Policy: Type of the policy that's being removed
-     * @return: Tensor object without the specified policy
-     */
-    template<template<typename> typename _Policy>
-    auto RemovePolicy() {
-        return ExtractPoliciesFromList(EraseType<TTypeList<Policies...>, _Policy>());
-    }
-
-    /**
-    * Removes the policy on the specified position. If the position is negative, it removes the last policy from the list
-    * 
-    * @tparam N: position of the specified policy
-    * @return: Tensor object without the specified policy
-    */
-    template<int N = -1>
-    auto RemoveNthPolicy() {
-        return ExtractPoliciesFromList(RemoveType<TTypeList<Policies...>, N>());
-    }
 };
 
-} // namespace AboveInfinity
+template<>
+class Tensor<>{};
+
+
+template<typename T>
+class FirstPolicy {
+public:
+
+    void first_print() {
+       static_cast<T*>(this)->private_print();
+       static_cast<T*>(this)->public_print();
+    }
+
+};
+
+template<typename T>
+class SecondPolicy {
+public:
+
+void second_print() {
+    std::cout << "Value of x: " << static_cast<T*>(this)->x << std::endl;
+    static_cast<T*>(this)->x = 5;
+    std::cout << "Value of x: " << static_cast<T*>(this)->x << std::endl;
+}
+
+};
+
+template<typename T>
+class ThirdPolicy {
+public:
+
+    void third_print() {
+        std::cout << "Value of x: " << static_cast<T*>(this)->x << std::endl;
+    }
+
+};
+
+
+int main() {
+    Tensor<FirstPolicy, SecondPolicy, ThirdPolicy> t;
+
+    t.first_print();
+    t.second_print();
+    t.third_print();
+
+    return 0;
+}
