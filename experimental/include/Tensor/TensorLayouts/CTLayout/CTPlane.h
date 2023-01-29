@@ -15,6 +15,18 @@ namespace AboveInfinity {
  * interleaved) for all of their planes. While the offset allows them to reuse the same buffer for some or all of the planes
  * by skipping the required number of elements to access the requested plane's data.
  * This kind of design allows for interleaved, semi-interleaved, planar and packed Tensor memory formats.
+ *
+ * This is what a single plane looks like in a more readable format:
+ *
+ * template<typename BufferType>
+ * struct plane {
+ *     BufferType buffer;
+ *     array<size_t, N> lengths;
+ *     array<size_t, N> strides;
+ *     int offset;
+ * };
+ *
+ * The buffer can be either a class or a pointer.
  */
 template<typename TBuffer, typename Shape, std::size_t channels = 1u>
 class CTPlane {
