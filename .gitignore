@@ -1,25 +1,10 @@
-# Prerequisites
-*.d
-
 # Executables
 *.exe
 *.out
 *.app
 
-# Cmake
-CMakeCache.txt
-Makefile
-*build*
-
-# Git
-*.orig
-*.diff
-diff
-*.save
-save
-*.old
+# Build directory
+build/
 
 # Other
-.*project
-.settings
 .vscode

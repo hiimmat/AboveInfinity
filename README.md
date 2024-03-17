@@ -1,45 +1,223 @@
-# AboveInfinity
+# Introduction
 
-AboveInfinity is a templated C++17 header-only library used for tensor manipulation. The current version of the library is 0.2. It can be built with or without CMake. If it's built with CMake, the minimum required version of CMake is 3.12.
+ntensor is a C++20 template header only library for multi-dimensional array manipulation. The library is inspired by [NumPy](https://numpy.org/), a Python library for scientific computing.
 
-This library provides data structures and data descriptors used to easier represent multidimensional data (Tensors and TensorViews), as well as functionalities that allow manipulating and/or iterating over the same.
+The main container in this library is a Tensor, which consists of a variadic number of planes, each representing a multidimensional array. Each plane can have one or more channels, allowing the Tensor to be regular, interlaved, semi-interleaved, or planar. Furthermore, each plane can have a distinct shape and a distinct buffer used for memory allocation.
 
-## Features
+Additionally, Tensors adopt a compile-time variadic version of the policy design pattern, which allows for easier addition/removal of features from the container itself.
 
-This library contains the implementation of Tensor as its main data structure and TensorView as the main data descriptor. All the features provided by this library were designed to work with Tensors and/or TensorViews independently of their rank.
+# Usage
 
-There's also an implementation of a newer version of the Tensor class that unifies the current Tensor and TensorView classes. It can be found in the `experimental` directory since there's still no full support for it (it's tested, but there are no written test cases for it and the TensorOps methods need to be rewritten to support it). However, some advantages of that class are that it supports different memory layouts such as real, interleaved, semi-interleaved, planar, and packed memory layouts, it can work with both sparse and dense buffers, and it can be easily adjusted to work with purely compile-time and/or runtime methods. Also, adding new functionalities is quite simple since the class uses variadic policy-based design.
+### Create a tensor with a single 1D plane, and reshape the plane into a 3D plane
 
-The following is a brief selection of the most important features included in this project:
-- fastPermute (permutes the dimensions of a TensorView)
-- undoPermutation (undoes the permutation done through fastPermute)
-- slice (performs a hyperplane over a given dimension of a TensorView)
-- slab (performs a hyperslab over a given dimension of a TensorView)
-- slicingPointer (retrieves the pointer to the data of a TensorView that one would get after performing several slice operations)
-- subspace (a combination of slice and slab inspired by NumPy's indexing)
-- newAxis (increases the dimension of a TensorView by one)
-- squeeze (removes all single dimensions from a TensorView)
-- reshape (changes the shape of a TensorView without affecting the stored data)
-- flatten (copies the data a TensorView points to into a rank 1 Tensor)
-- ravel (attempts to convert a TensorView into a rank 1 view. If unable, it copies the data into a rank 1 Tensor)
-- saveAsText (saves a TensorView into a text file - used in combination with loadFromText)
-- loadFromText (loads the data from a text file into a TensorView - used in combination with saveAsText)
-- execute (executes a function over one or more TensorViews)
-- copy (copies the data from one TensorView into another TensorView)
+```
+#include <dense_buffer.hpp>
+#include <plane.hpp>
+#include <reshape.hpp>
+#include <shape_transmutation.hpp>
+#include <tensor.hpp>
 
-## Building & Compatibility
+namespace nt = ntensor;
 
-The main part of the code resides in the `include` directory, and it can be included as a standalone project. Optionally, this library can be included through CMake, and there's an example of how to do it in the `examples` directory. The difference between using CMake and not using CMake is that CMake allows us to overwrite the defaults of a few features that are used in the code.
+int main() {
+  static constexpr nt::Dimensions<24u> dimensions;
+  auto plane = nt::create_plane<nt::DenseBuffer<int>, dimensions>();
+  auto tensor = nt::create_tensor<nt::ShapeTransmutation>(plane);
 
-The experimental part of the code resides in the `experimental` directory, and it can be included as a standalone project as well. Unfortunately, it hasn't been added to CMakeLists yet.
+  static constexpr nt::Dimensions<4u, 2u, 3u> reshaped_dimensions;
+  auto reshaped_tensor = nt::reshape<reshaped_dimensions>(tensor);
 
-The latest version of the code was tested on Windows 10 and Ubuntu 18.04, both using GCC 11.2.
+  return 0;
+}
+```
 
-An earlier version supported msvc. However, there were several reasons that lead me to drop the support for it. Although, the main reason was due to getting the error `C1035` when trying to compile the function `subspace`.
+### Create a tensor with three planes, where the second and third planes have half the size of the first plane
 
-## Further changes
+```
+#include <dense_buffer.hpp>
+#include <plane.hpp>
+#include <shape_transmutation.hpp>
+#include <tensor.hpp>
 
-There were plans for newer versions which would include rewriting the existing data structures and implementing additional functionalities such as einsum, lazy evaluation and broadcasting. However, the cost-to-benefit ratio doesn't justify the continuation of this project, so for now, I'll be shifting my focus towards other projects. And maybe I'll revisit this one once C++20 becomes more stable.
+namespace nt = ntensor;
 
-<br />
-Comments and bug reports are welcome. 
+int main() {
+  static constexpr nt::Dimensions<4u, 3u> dimensions1;
+  static constexpr nt::Dimensions<2u, 3u> dimensions2;
+
+  auto plane1 = nt::create_plane<nt::DenseBuffer<int>, dimensions1>();
+  auto plane2 = nt::create_plane<nt::DenseBuffer<int>, dimensions2>();
+  auto plane3 = nt::create_plane<nt::DenseBuffer<int>, dimensions2>();
+
+  auto tensor = nt::create_tensor<nt::ShapeTransmutation>(plane1, plane2, plane3);
+
+  return 0;
+}
+```
+
+### Initialize the elements of a tensor with random values in a range [0, 100]
+```
+#include <dense_buffer.hpp>
+#include <execute.hpp>
+#include <plane.hpp>
+#include <random>
+#include <shape_transmutation.hpp>
+#include <tensor.hpp>
+
+namespace nt = ntensor;
+
+int main() {
+  static constexpr nt::Dimensions<4u, 2u, 3u> dimensions;
+  auto plane = nt::create_plane<nt::DenseBuffer<int>, dimensions>();
+  auto tensor = nt::create_tensor<nt::ShapeTransmutation>(plane);
+
+  std::default_random_engine generator;
+  std::uniform_int_distribution<int> distribution(0, 100);
+
+  auto generate_number = [&distribution, &generator](int& e) { e = distribution(generator); };
+
+  nt::execute(generate_number, tensor);
+
+  return 0;
+}
+```
+
+### Find the element with the largest value inside the tensor
+
+```
+#include <dense_buffer.hpp>
+#include <execute.hpp>
+#include <plane.hpp>
+#include <random>
+#include <shape_transmutation.hpp>
+#include <tensor.hpp>
+
+namespace nt = ntensor;
+
+int main() {
+  static constexpr nt::Dimensions<4u, 2u, 3u> dimensions;
+  auto plane = nt::create_plane<nt::DenseBuffer<int>, dimensions>();
+  auto tensor = nt::create_tensor<nt::ShapeTransmutation>(plane);
+
+  std::default_random_engine generator;
+  std::uniform_int_distribution<int> distribution(0, 100);
+
+  auto generate_number = [&distribution, &generator](int& e) { e = distribution(generator); };
+
+  nt::execute(generate_number, tensor);
+
+  int largest_value = 0;
+
+  auto find_largest_value = [&largest_value](int& e) { e > largest_value ? largest_value = e : 0; };
+
+  nt::execute(find_largest_value, tensor);
+
+  std::cout << largest_value << std::endl;
+
+  return 0;
+}
+```
+
+### Index access
+
+```
+#include <dense_buffer.hpp>
+#include <plane.hpp>
+#include <shape_transmutation.hpp>
+#include <tensor.hpp>
+
+namespace nt = ntensor;
+
+int main() {
+  static constexpr nt::Dimensions<4u, 2u, 3u> dimensions;
+  auto plane = nt::create_plane<nt::DenseBuffer<int>, dimensions>();
+  auto tensor = nt::create_tensor<nt::ShapeTransmutation>(plane);
+
+  // Access a specific element inside the Tensor.
+  // For example access the element at index [3][1][2]
+  // The first value passed to the function is the channel
+  auto& value = tensor.slicing_value(0u, 3u, 1u, 2u);
+
+  // Create a slice of the Tensor.
+  // For example, turn [4][2][3] into [4][3]
+  auto slice = tensor.slice<1u>(1u);
+
+  // Create a slab of the Tensor
+  // For example, turn [4][2][3] into [2]][2][3]
+  auto slab = tensor.slab<0u, 1u, 3u>();
+
+  // Combination of using slab and slice
+  // For example, turn [4][2][3] into [2][3]
+  // The first value passed to the function is the plane index
+  auto subspace = tensor.template subspace<0u, nt::range<0u, 2u>{}, nt::range<2u, 2u>{}, nt::range<0u, 3u>{}>();
+
+  return 0;
+}
+```
+
+### Write the tensor to a sink/load the tensor from a source
+
+```
+#include <dense_buffer.hpp>
+#include <execute.hpp>
+#include <plane.hpp>
+#include <random>
+#include <shape_transmutation.hpp>
+#include <sstream>
+#include <stream_io.hpp>
+#include <tensor.hpp>
+
+namespace nt = ntensor;
+
+int main() {
+  static constexpr nt::Dimensions<4u, 2u, 3u> dimensions;
+  auto plane1 = nt::create_plane<nt::DenseBuffer<int>, dimensions>();
+  auto tensor1 = nt::create_tensor<nt::ShapeTransmutation>(plane1);
+
+  std::default_random_engine generator;
+  std::uniform_int_distribution<int> distribution(0, 100);
+
+  auto generate_number = [&distribution, &generator](int& e) { e = distribution(generator); };
+
+  nt::execute(generate_number, tensor1);
+
+  std::stringstream ss;
+
+  nt::write_to_sink(tensor1, ss);
+
+  auto plane2 = nt::create_plane<nt::DenseBuffer<int>, dimensions>();
+  auto tensor2 = nt::create_tensor<nt::ShapeTransmutation>(plane2);
+
+  nt::load_from_source(tensor2, ss.view());
+
+  return 0;
+}
+```
+
+
+# Building and Installation
+To build the unit tests, the [Catch2](https://github.com/catchorg/Catch2) unit testing framework is required. If it's not already available on the system, CMake will attempt to download it.
+
+The library has no other dependencies. So in case if the tests aren't needed, the files can be included as a standalone project.
+
+Another option is to install the library or add it as a sub-directory through CMake with tests enabled/disabled.
+
+## cmake installation
+
+```
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX:PATH=<installation_path>
+cmake --build . --target install
+```
+
+## cmake sub-directory
+
+ntensor can be included using `add_subdirectory` if it cannot be installed on a system.
+
+If ntensor is included and the `EXCLUDE_FROM_ALL` flag is set, ntensor tests can be disabled by setting the `NTENSOR_BUILD_TESTS` option to OFF.
+
+```
+ set(NTENSOR_BUILD_TESTS OFF)
+  add_subdirectory(${ntensor_SOURCE_DIR} ${ntensor_BINARY_DIR}
+                   EXCLUDE_FROM_ALL)
+```
